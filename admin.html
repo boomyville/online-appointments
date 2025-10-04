@@ -4,13 +4,10 @@
     <meta charset="UTF-8">
     <title>Admin Login</title>
     <link rel="stylesheet" href="styles.css">
-    <style>
-        /* Reuse styles from register.html */
-    </style>
 </head>
 <body>
     <h2>Admin Login</h2>
-    <form id="loginForm">
+    <form id="loginForm" style="display: none;">
         <label for="username">Username:</label>
         <input type="text" id="username" name="username" required><br>
 
@@ -18,15 +15,66 @@
         <input type="password" id="password" name="password" required><br>
 
         <button type="submit" id="loginBtn">Login</button>
+        <div id="loginMessage" style="margin-top:8px;"></div>
     </form>
-    <div id="loginMessage"></div>
     <script>
     const loginBtn = document.getElementById('loginBtn');
+
+    // Check if blocked on page load
+    fetch('accounts.php?action=login_blocked')
+        .then(res => res.json())
+        .then(data => {
+            if (data.blocked) {
+                window.location = 'blocked.html';
+            } else {
+                // Check if session is active
+                fetch('accounts.php?action=session_active')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.active) {
+                            document.body.innerHTML = '';
+                            // Calendar container
+                            const calWrap = document.createElement('div');
+                            calWrap.id = 'calendarWrap';
+                            calWrap.style.display = 'flex';
+                            calWrap.style.gap = '32px';
+                            calWrap.style.alignItems = 'flex-start';
+                            calWrap.style.margin = '40px auto';
+                            calWrap.style.maxWidth = '900px';
+                            calWrap.style.justifyContent = 'center';
+                            document.body.appendChild(calWrap);
+                            // Calendar UI
+                            const calDiv = document.createElement('div');
+                            calDiv.id = 'calendar';
+                            calDiv.style.minWidth = '340px';
+                            calDiv.style.background = '#fff';
+                            calDiv.style.borderRadius = '12px';
+                            calDiv.style.boxShadow = '0 2px 16px rgba(0,0,0,0.08)';
+                            calDiv.style.padding = '24px';
+                            calWrap.appendChild(calDiv);
+                            // Appointments UI
+                            const apptDiv = document.createElement('div');
+                            apptDiv.id = 'appointments';
+                            apptDiv.style.minWidth = '260px';
+                            apptDiv.style.background = '#f8f9fa';
+                            apptDiv.style.borderRadius = '12px';
+                            apptDiv.style.boxShadow = '0 2px 16px rgba(0,0,0,0.08)';
+                            apptDiv.style.padding = '24px';
+                            calWrap.appendChild(apptDiv);
+                            // Render calendar
+                            renderCalendar(calDiv, apptDiv);
+                        } else {
+                            document.getElementById('loginForm').style.display = 'block';
+                        }
+                    });
+            }
+        });
+
     document.getElementById('loginForm').addEventListener('submit', function(e) {
         e.preventDefault();
         loginBtn.disabled = true;
         const formData = new FormData(this);
-        fetch('register.php?action=login_admin', {
+        fetch('accounts.php?action=login_admin', {
             method: 'POST',
             body: formData
         })
@@ -34,13 +82,168 @@
         .then(data => {
             if (data.success) {
                 loginBtn.textContent = 'Success';
-                document.getElementById('loginMessage').textContent = 'user logged in: ' + data.name;
+                document.getElementById('loginMessage').textContent = 'Welcome ' + data.name + "!";
+                document.getElementById('loginMessage').style.color = '#007bff';
             } else {
                 loginBtn.disabled = false;
                 document.getElementById('loginMessage').textContent = data.message;
+                document.getElementById('loginMessage').style.color = '#dc3545'; // red
+                if (data.message.includes('You have 0 login attempts remaining.') || data.message.includes('blocked')) {
+                    loginBtn.disabled = true;
+                    document.body.innerHTML = '';
+                    fetch('blocked.html')
+                        .then(res => res.text())
+                        .then(html => {
+                            document.body.innerHTML = html;
+                        });
+                }
             }
         });
     });
+
+    function renderCalendar(calDiv, apptDiv) {
+        const today = new Date();
+        let currentMonth = today.getMonth();
+        let currentYear = today.getFullYear();
+        let unavailableDays = [];
+
+        // Month names
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        // Day names
+        const dayNames = ["M", "T", "W", "T", "F", "S", "S"];
+
+        // Fetch unavailable days for next 120 days
+        fetch('appointment_book.php?action=get_unavailable_days')
+            .then(res => res.json())
+            .then(data => {
+                unavailableDays = data.unavailable || [];
+                renderMonth(currentMonth, currentYear);
+            });
+
+        function renderMonth(month, year) {
+            calDiv.innerHTML = '';
+            // Month tabs
+            const tabWrap = document.createElement('div');
+            tabWrap.className = 'calendar-tabs';
+            for (let i = 0; i < 3; i++) {
+                const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+                const tab = document.createElement('button');
+                tab.className = 'calendar-tab';
+                tab.textContent = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+                if (d.getMonth() === month && d.getFullYear() === year) tab.classList.add('active');
+                tab.onclick = () => {
+                    currentMonth = d.getMonth();
+                    currentYear = d.getFullYear();
+                    renderMonth(currentMonth, currentYear);
+                };
+                tabWrap.appendChild(tab);
+            }
+            calDiv.appendChild(tabWrap);
+
+            // Day names header
+            const header = document.createElement('div');
+            header.className = 'calendar-header';
+            dayNames.forEach(dn => {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-header-cell';
+                cell.textContent = dn;
+                header.appendChild(cell);
+            });
+            calDiv.appendChild(header);
+
+            // Days grid
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+            // First day of month
+            const firstDay = new Date(year, month, 1);
+            let startDay = (firstDay.getDay() + 6) % 7; // Monday=0, Sunday=6
+            // Days in month
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            // Fill grid
+            let dayNum = 1;
+            for (let i = 0; i < 6; i++) { // 6 rows max
+                for (let j = 0; j < 7; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'calendar-cell';
+                    if (i === 0 && j < startDay) {
+                        cell.classList.add('empty');
+                        grid.appendChild(cell);
+                        continue;
+                    }
+                    if (dayNum > daysInMonth) {
+                        cell.classList.add('empty');
+                        grid.appendChild(cell);
+                        continue;
+                    }
+                    // Date string for this cell
+                    const cellDate = new Date(year, month, dayNum);
+                    // Fix: always use UTC for ISO string to avoid timezone offset
+                    const cellDateStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth()+1).padStart(2,'0') + '-' + String(cellDate.getDate()).padStart(2,'0');
+                    cell.textContent = dayNum;
+                    cell.dataset.date = cellDateStr;
+                    // Past days
+                    if (cellDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+                        cell.classList.add('calendar-past');
+                        cell.style.pointerEvents = 'none';
+                    }
+                    // Today
+                    else if (cellDateStr === new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString().slice(0, 10)) {
+                        cell.classList.add('calendar-today');
+                        // Make today clickable
+                        cell.onclick = () => {
+                            selectDay(cellDateStr, cell);
+                        };
+                    }
+                    // Unavailable days
+                    else if (unavailableDays.includes(cellDateStr)) {
+                        cell.classList.add('calendar-unavailable');
+                        cell.onclick = () => {
+                            selectDay(cellDateStr, cell);
+                        };
+                    } else {
+                        cell.classList.add('calendar-available');
+                        cell.onclick = () => {
+                            selectDay(cellDateStr, cell);
+                        };
+                    }
+                    grid.appendChild(cell);
+                    dayNum++;
+                }
+            }
+            calDiv.appendChild(grid);
+        }
+
+        function selectDay(dateStr, cell) {
+            // Highlight selected cell
+            document.querySelectorAll('.calendar-cell.selected').forEach(c => c.classList.remove('selected'));
+            cell.classList.add('selected');
+            // Format date for display
+            const d = new Date(cell.dataset.date || dateStr);
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+            const day = d.getDate();
+            const monthName = d.toLocaleDateString('en-US', { month: 'long' });
+            const year = d.getFullYear();
+            const displayDate = `${dayName} ${day} ${monthName} ${year}`;
+            // Fetch appointments
+            apptDiv.innerHTML = `<h3>Appointments for ${displayDate}</h3><div>Loading...</div>`;
+            fetch('appointment_book.php?action=get_appointments&date=' + dateStr)
+                .then(res => res.json())
+                .then(data => {
+                    const appts = data.appointments || [];
+                    if (appts.length === 0) {
+                        apptDiv.innerHTML = `<h3>Appointments for ${displayDate}</h3><div>No appointments available.</div>`;
+                    } else {
+                        apptDiv.innerHTML = `<h3>Appointments for ${displayDate}</h3>`;
+                        appts.forEach(a => {
+                            const item = document.createElement('div');
+                            item.className = 'appointment-item';
+                            item.textContent = 'Time: ' + a.start_time + ', Duration: ' + a.duration + ' mins';
+                            apptDiv.appendChild(item);
+                        });
+                    }
+                });
+        }
+    }
     </script>
 </body>
 </html>

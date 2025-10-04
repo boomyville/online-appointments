@@ -85,4 +85,114 @@ button:disabled {
     font-size: 16px;
     color: #007bff;
 }
+
+/* Calendar Styles */
+.calendar-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 18px;
+    justify-content: center;
+}
+.calendar-tab {
+    background: #f8f9fa;
+    border: none;
+    border-radius: 8px 8px 0 0;
+    padding: 10px 24px;
+    font-size: 16px;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    color: #007bff;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: background 0.2s, color 0.2s;
+}
+.calendar-tab.active {
+    background: #007bff;
+    color: #fff;
+    font-weight: bold;
+}
+.calendar-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 6px;
+}
+.calendar-header-cell {
+    text-align: center;
+    font-weight: 500;
+    font-size: 15px;
+    color: #007bff;
+    padding: 4px 0;
+}
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+.calendar-cell {
+    height: 38px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    text-align: center;
+    line-height: 38px;
+    font-size: 16px;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    color: #222;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.calendar-cell:hover {
+    background: #e3f0ff;
+    color: #007bff;
+}
+.calendar-cell.selected {
+    background: #007bff;
+    color: #fff;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.12);
+}
+.calendar-today {
+    border: 2px solid #28a745;
+    background: #eafbe7;
+    color: #28a745;
+    font-weight: bold;
+}
+.calendar-past {
+    background: #e9ecef;
+    color: #adb5bd;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+.calendar-unavailable {
+    background: #fff3cd;
+    color: #856404;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+.calendar-available {
+    background: #f8f9fa;
+    color: #222;
+    cursor: pointer;
+}
+.calendar-cell.empty {
+    background: transparent;
+    box-shadow: none;
+    cursor: default;
+}
+#appointments {
+    min-width: 260px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    padding: 24px;
+    font-family: 'Roboto', 'Arial', sans-serif;
+}
+.appointment-item {
+    background: #fff;
+    border-radius: 6px;
+    margin: 8px 0;
+    padding: 10px 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    font-size: 15px;
+    color: #222;
+}
 /* ...existing code... */

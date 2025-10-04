@@ -29,3 +29,11 @@ CREATE TABLE Admin (
     hash VARCHAR(255) NOT NULL,
     salt VARCHAR(255) NOT NULL
 );
+
+CREATE TABLE Logins (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    ip VARCHAR(45) NOT NULL,
+    time DATETIME NOT NULL,
+    username VARCHAR(50),
+    status ENUM('success', 'fail') NOT NULL
+);

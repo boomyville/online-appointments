@@ -93,12 +93,65 @@ if ($action === 'login_admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $pdo->prepare('SELECT username, email, hash, salt FROM Admin WHERE username = ?');
     $stmt->execute([$username]);
     $admin = $stmt->fetch();
+    $ip = get_client_ip();
+    $status = 'fail';
     if ($admin && password_verify($password . $admin['salt'], $admin['hash'])) {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
         $_SESSION['admin'] = $admin['username'];
+        $status = 'success';
+        // Log successful login
+        $log = $pdo->prepare('INSERT INTO Logins (ip, time, username, status) VALUES (?, NOW(), ?, ?)');
+        $log->execute([$ip, $username, $status]);
         echo json_encode(['success' => true, 'name' => $admin['username']]);
     } else {
-        echo json_encode(['success' => false, 'message' => 'Invalid username or password.']);
+        // Log failed login
+        $log = $pdo->prepare('INSERT INTO Logins (ip, time, username, status) VALUES (?, NOW(), ?, ?)');
+        $log->execute([$ip, $username, $status]);
+        // Count failed logins in past hour
+        $failStmt = $pdo->prepare('SELECT COUNT(*) FROM Logins WHERE ip = ? AND status = "fail" AND time >= (NOW() - INTERVAL 1 HOUR)');
+        $failStmt->execute([$ip]);
+        $failCount = $failStmt->fetchColumn();
+        $entriesLeft = max(0, $login_fails - $failCount);
+        $msg = 'Invalid username or password.';
+        if ($failCount > 4) {
+            if ($entriesLeft === 0) {
+                $msg .= ' You have 0 login attempts remaining.';
+            } else {
+                $msg .= ' You have ' . $entriesLeft . ' login attempts left.';
+            }
+        }
+        echo json_encode(['success' => false, 'message' => $msg]);
     }
+    exit;
+}
+if ($action === 'next_login_time') {
+    $ip = get_client_ip();
+    // Get timestamps of failed logins in the past hour
+    $stmt = $pdo->prepare('SELECT time FROM Logins WHERE ip = ? AND status = "fail" AND time >= (NOW() - INTERVAL 1 HOUR) ORDER BY time ASC');
+    $stmt->execute([$ip]);
+    $failed = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (count($failed) >= $login_fails) {
+        // Blocked: next login is 1 hour after the 7th most recent failed attempt
+        $block_time = date('Y-m-d H:i:s', strtotime($failed[6]) + 3600);
+        echo json_encode(['next_login' => $block_time]);
+    } else {
+        echo json_encode(['next_login' => null]);
+    }
+    exit;
+}
+if ($action === 'login_blocked') {
+    $ip = get_client_ip();
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM Logins WHERE ip = ? AND status = "fail" AND time >= (NOW() - INTERVAL 1 HOUR)');
+    $stmt->execute([$ip]);
+    $failCount = $stmt->fetchColumn();
+    echo json_encode(['blocked' => ($failCount >= $login_fails)]);
+    exit;
+}
+if ($action === 'session_active') {
+    session_start();
+    echo json_encode(['active' => isset($_SESSION['admin'])]);
     exit;
 }
 echo json_encode(['success' => false, 'message' => 'Invalid action.']);

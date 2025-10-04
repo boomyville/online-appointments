@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Blocked</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 50% 50%, #ff00cc, #3333ff, #00ff99, #ffcc00);
+            transition: background 0.2s;
+        }
+        h1 {
+            font-size: 7vw;
+            font-family: 'Arial Black', 'Arial', sans-serif;
+            color: white;
+            text-shadow: 0 0 40px #ff00cc, 0 0 80px #3333ff, 0 0 120px #00ff99;
+            letter-spacing: 0.2em;
+            animation: pulse 1.5s infinite alternate;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.08); }
+        }
+    </style>
+</head>
+<body>
+    <h1 id="blocked">BLOCKED</h1>
+    <button id="showNextLogin" style="position:fixed;bottom:8px;right:12px;font-size:14px;font-family:'Arial Black','Arial',sans-serif;color:#fff;background:rgba(0,0,0,0.25);border:none;padding:10px 18px;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:pointer;">Show next login time</button>
+    <div id="blockedInfo" style="position:fixed;bottom:48px;right:12px;font-size:14px;font-family:'Arial Black','Arial',sans-serif;color:#fff;opacity:0;transition:opacity 0.2s;padding:8px 16px;border-radius:12px;background:rgba(0,0,0,0.15);pointer-events:none;">
+        <!-- Next login time will be shown here -->
+    </div>
+    <script>
+    // Animate background based on cursor position
+    document.addEventListener('mousemove', function(e) {
+        const x = e.clientX / window.innerWidth;
+        const y = e.clientY / window.innerHeight;
+        const bg = `radial-gradient(circle at ${x*100}% ${y*100}%, #ff00cc, #3333ff, #00ff99, #ffcc00)`;
+        document.body.style.background = bg;
+    });
+    // Touch support for mobile
+    document.addEventListener('touchmove', function(e) {
+        if (e.touches.length > 0) {
+            const x = e.touches[0].clientX / window.innerWidth;
+            const y = e.touches[0].clientY / window.innerHeight;
+            const bg = `radial-gradient(circle at ${x*100}% ${y*100}%, #ff00cc, #3333ff, #00ff99, #ffcc00)`;
+            document.body.style.background = bg;
+        }
+    });
+    const btn = document.getElementById('showNextLogin');
+    const info = document.getElementById('blockedInfo');
+    btn.addEventListener('mouseenter', function() {
+        fetch('accounts.php?action=next_login_time')
+            .then(res => res.json())
+            .then(data => {
+                if (data.next_login) {
+                    info.textContent = 'You can login again at: ' + data.next_login;
+                    info.style.opacity = 1;
+                } else {
+                    info.textContent = '';
+                    info.style.opacity = 0;
+                }
+            });
+    });
+    btn.addEventListener('mouseleave', function() {
+        info.style.opacity = 0;
+    });
+    </script>
+</body>
+</html>
