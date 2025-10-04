@@ -1,0 +1,105 @@
+<?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+require_once 'config.php';
+header('Content-Type: application/json');
+
+try {
+    // DEBUG: Testing database connection
+    $pdo->query('SELECT 1');
+    // DEBUG: Database connection successful
+} catch (Exception $e) {
+    echo json_encode(['success' => false, 'message' => 'Database connection error: ' . $e->getMessage()]);
+    exit;
+}
+
+function admin_exists($pdo) {
+    $stmt = $pdo->query('SELECT COUNT(*) FROM Admin');
+    $count = $stmt->fetchColumn();
+    return $count > 0;
+}
+
+function validate_nonce($pdo, $nonce) {
+    $stmt = $pdo->prepare('SELECT id FROM Nonces WHERE nonce = ? AND created_at >= (NOW() - INTERVAL 1 MINUTE)');
+    $stmt->execute([$nonce]);
+    $row = $stmt->fetch();
+    if ($row) {
+        // Delete nonce after use
+        $del = $pdo->prepare('DELETE FROM Nonces WHERE id = ?');
+        $del->execute([$row['id']]);
+        return true;
+    }
+    return false;
+}
+
+function register_admin($pdo) {
+    $nonce = $_POST['nonce'] ?? '';
+    if (!validate_nonce($pdo, $nonce)) {
+        echo json_encode(['success' => false, 'message' => 'Invalid or expired nonce.']);
+        exit;
+    }
+    if (admin_exists($pdo)) {
+        echo json_encode(['success' => false, 'message' => 'Admin already exists.']);
+        exit;
+    }
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? null;
+    $password = $_POST['password'] ?? '';
+    $repeat = $_POST['repeatPassword'] ?? '';
+    if ($password !== $repeat) {
+        echo json_encode(['success' => false, 'message' => 'Passwords do not match.']);
+        exit;
+    }
+    // Password requirements
+    if (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/', $password)) {
+        echo json_encode(['success' => false, 'message' => 'Password does not meet requirements.']);
+        exit;
+    }
+    // Generate random salt
+    $salt = bin2hex(random_bytes(16));
+    // Hash password with salt using bcrypt
+    $hash = password_hash($password . $salt, PASSWORD_DEFAULT);
+    // Save to DB
+    $stmt = $pdo->prepare('INSERT INTO Admin (username, email, hash, salt) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$username, $email, $hash, $salt]);
+    echo json_encode(['success' => true, 'message' => 'Admin registered successfully.']);
+    exit;
+}
+
+$action = $_GET['action'] ?? '';
+if ($action === 'admin_exists') {
+    echo json_encode(['exists' => admin_exists($pdo)]);
+    exit;
+}
+if ($action === 'register_admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    register_admin($pdo);
+    exit;
+}
+if ($action === 'get_nonce') {
+    // Generate a random nonce
+    $nonce = bin2hex(random_bytes(16));
+    // Store nonce in DB (user_id is NULL for registration)
+    $stmt = $pdo->prepare('INSERT INTO Nonces (user_id, nonce, created_at) VALUES (?, ?, NOW())');
+    $stmt->execute([null, $nonce]);
+    echo json_encode(['nonce' => $nonce]);
+    exit;
+}
+if ($action === 'login_admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_start();
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $stmt = $pdo->prepare('SELECT username, email, hash, salt FROM Admin WHERE username = ?');
+    $stmt->execute([$username]);
+    $admin = $stmt->fetch();
+    if ($admin && password_verify($password . $admin['salt'], $admin['hash'])) {
+        $_SESSION['admin'] = $admin['username'];
+        echo json_encode(['success' => true, 'name' => $admin['username']]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Invalid username or password.']);
+    }
+    exit;
+}
+echo json_encode(['success' => false, 'message' => 'Invalid action.']);
+exit;

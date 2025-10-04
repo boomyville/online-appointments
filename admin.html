@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Login</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Reuse styles from register.html */
+    </style>
+</head>
+<body>
+    <h2>Admin Login</h2>
+    <form id="loginForm">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required><br>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required><br>
+
+        <button type="submit" id="loginBtn">Login</button>
+    </form>
+    <div id="loginMessage"></div>
+    <script>
+    const loginBtn = document.getElementById('loginBtn');
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        loginBtn.disabled = true;
+        const formData = new FormData(this);
+        fetch('register.php?action=login_admin', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                loginBtn.textContent = 'Success';
+                document.getElementById('loginMessage').textContent = 'user logged in: ' + data.name;
+            } else {
+                loginBtn.disabled = false;
+                document.getElementById('loginMessage').textContent = data.message;
+            }
+        });
+    });
+    </script>
+</body>
+</html>

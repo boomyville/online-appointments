@@ -72,7 +72,7 @@
     repeatPassword.addEventListener('input', checkMatch);
 
     // Disable submit if admin exists
-    fetch('refresh.php?action=admin_exists')
+    fetch('accounts.php?action=admin_exists')
         .then(res => res.json())
         .then(data => {
             if (data.exists) {
@@ -81,19 +81,36 @@
             }
         });
 
+    // Fetch nonce and add to form
+    let nonce = '';
+    fetch('accounts.php?action=get_nonce')
+        .then(res => res.json())
+        .then(data => {
+            nonce = data.nonce;
+            const nonceInput = document.createElement('input');
+            nonceInput.type = 'hidden';
+            nonceInput.name = 'nonce';
+            nonceInput.value = nonce;
+            document.getElementById('registerForm').appendChild(nonceInput);
+        });
+
     // Handle form submit
     document.getElementById('registerForm').addEventListener('submit', function(e) {
         e.preventDefault();
         if (submitBtn.disabled) return;
         const formData = new FormData(this);
-        fetch('refresh.php?action=register_admin', {
+        formData.append('nonce', nonce);
+        fetch('accounts.php?action=register_admin', {
             method: 'POST',
             body: formData
         })
         .then(res => res.json())
         .then(data => {
             document.getElementById('message').textContent = data.message;
-            if (data.success) submitBtn.disabled = true;
+            if (data.success) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Success';
+            }
         });
     });
     </script>
