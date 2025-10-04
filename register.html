@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register Admin</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="script.js" defer></script>
+    <style>
+        .requirement { color: red; }
+        .requirement.met { color: green; }
+    </style>
+</head>
+<body>
+    <h2>Admin Registration</h2>
+    <form id="registerForm">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" value="admin" required><br>
+
+        <label for="email">Email (optional):</label>
+        <input type="email" id="email" name="email"><br>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required
+            pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$"
+            title="At least 8 characters, 1 symbol, 1 uppercase, 1 lowercase, 1 number"><br>
+        <div id="passwordRequirements">
+            <span class="requirement" id="lenReq">At least 8 characters</span><br>
+            <span class="requirement" id="symReq">At least 1 symbol</span><br>
+            <span class="requirement" id="capReq">At least 1 uppercase letter</span><br>
+            <span class="requirement" id="lowReq">At least 1 lowercase letter</span><br>
+            <span class="requirement" id="numReq">At least 1 number</span><br>
+        </div>
+
+        <label for="repeatPassword">Repeat Password:</label>
+        <input type="password" id="repeatPassword" name="repeatPassword" required><br>
+        <span id="matchReq" class="requirement">Passwords must match</span><br>
+        <p></p>
+        <button type="submit" id="submitBtn">Register</button>
+    </form>
+    <div id="message"></div>
+    <script>
+    // Password requirements check
+    const password = document.getElementById('password');
+    const repeatPassword = document.getElementById('repeatPassword');
+    const submitBtn = document.getElementById('submitBtn');
+    const matchReq = document.getElementById('matchReq');
+    const requirements = {
+        lenReq: p => p.length >= 8,
+        symReq: p => /[^A-Za-z0-9]/.test(p),
+        capReq: p => /[A-Z]/.test(p),
+        lowReq: p => /[a-z]/.test(p),
+        numReq: p => /\d/.test(p)
+    };
+    password.addEventListener('input', () => {
+        for (const [id, test] of Object.entries(requirements)) {
+            const el = document.getElementById(id);
+            if (test(password.value)) {
+                el.classList.add('met');
+            } else {
+                el.classList.remove('met');
+            }
+        }
+    });
+    function checkMatch() {
+        if (password.value && repeatPassword.value && password.value === repeatPassword.value) {
+            matchReq.classList.add('met');
+        } else {
+            matchReq.classList.remove('met');
+        }
+    }
+    password.addEventListener('input', checkMatch);
+    repeatPassword.addEventListener('input', checkMatch);
+
+    // Disable submit if admin exists
+    fetch('refresh.php?action=admin_exists')
+        .then(res => res.json())
+        .then(data => {
+            if (data.exists) {
+                submitBtn.disabled = true;
+                document.getElementById('message').textContent = 'Admin already registered.';
+            }
+        });
+
+    // Handle form submit
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (submitBtn.disabled) return;
+        const formData = new FormData(this);
+        fetch('refresh.php?action=register_admin', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('message').textContent = data.message;
+            if (data.success) submitBtn.disabled = true;
+        });
+    });
+    </script>
+</body>
+</html>

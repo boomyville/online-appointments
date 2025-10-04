@@ -1,0 +1,88 @@
+/* ...existing code... */
+body {
+    background: #f8f9fa;
+    font-family: 'Roboto', 'Arial', sans-serif;
+    color: #222;
+    margin: 0;
+    padding: 0;
+}
+
+h2 {
+    color: #007bff;
+    text-align: center;
+    margin-top: 40px;
+    font-weight: 500;
+}
+
+form {
+    background: #fff;
+    max-width: 400px;
+    margin: 40px auto;
+    padding: 32px 24px 24px 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 18px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 16px;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+input:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+button[type="submit"] {
+    width: 100%;
+    background: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 18px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.08);
+    transition: background 0.2s;
+}
+button[type="submit"]:hover:enabled {
+    background: #0056b3;
+}
+button:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+}
+
+#passwordRequirements {
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+.requirement {
+    color: #dc3545;
+    font-size: 14px;
+}
+.requirement.met {
+    color: #28a745;
+}
+
+#message {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 16px;
+    color: #007bff;
+}
+/* ...existing code... */
