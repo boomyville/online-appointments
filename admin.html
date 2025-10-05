@@ -7,7 +7,7 @@
 </head>
 <body>
     <h2>Admin Login</h2>
-    <form id="loginForm" style="display: none;">
+    <form id="loginForm" class="admin-login-form">
         <label for="username">Username:</label>
         <input type="text" id="username" name="username" required><br>
 
@@ -15,7 +15,7 @@
         <input type="password" id="password" name="password" required><br>
 
         <button type="submit" id="loginBtn">Login</button>
-        <div id="loginMessage" style="margin-top:8px;"></div>
+        <div id="loginMessage" class="admin-login-message"></div>
     </form>
     <script>
     const loginBtn = document.getElementById('loginBtn');
@@ -33,38 +33,39 @@
                     .then(data => {
                         if (data.active) {
                             document.body.innerHTML = '';
+                            // Add logout button
+                            const logoutBtn = document.createElement('button');
+                            logoutBtn.textContent = 'Logout';
+                            logoutBtn.className = 'styled-btn admin-logout-btn';
+                            logoutBtn.onclick = function() {
+                                fetch('accounts.php?action=logout', {
+                                    method: 'POST'
+                                })
+                                .then(res => res.json())
+                                .then(data => {
+                                    window.location.reload();
+                                });
+                            };
+                            document.body.appendChild(logoutBtn);
                             // Calendar container
                             const calWrap = document.createElement('div');
                             calWrap.id = 'calendarWrap';
-                            calWrap.style.display = 'flex';
-                            calWrap.style.gap = '32px';
-                            calWrap.style.alignItems = 'flex-start';
-                            calWrap.style.margin = '40px auto';
-                            calWrap.style.maxWidth = '900px';
-                            calWrap.style.justifyContent = 'center';
+                            calWrap.className = 'admin-calendar-wrap';
                             document.body.appendChild(calWrap);
                             // Calendar UI
                             const calDiv = document.createElement('div');
                             calDiv.id = 'calendar';
-                            calDiv.style.minWidth = '340px';
-                            calDiv.style.background = '#fff';
-                            calDiv.style.borderRadius = '12px';
-                            calDiv.style.boxShadow = '0 2px 16px rgba(0,0,0,0.08)';
-                            calDiv.style.padding = '24px';
+                            calDiv.className = 'admin-calendar';
                             calWrap.appendChild(calDiv);
                             // Appointments UI
                             const apptDiv = document.createElement('div');
                             apptDiv.id = 'appointments';
-                            apptDiv.style.minWidth = '260px';
-                            apptDiv.style.background = '#f8f9fa';
-                            apptDiv.style.borderRadius = '12px';
-                            apptDiv.style.boxShadow = '0 2px 16px rgba(0,0,0,0.08)';
-                            apptDiv.style.padding = '24px';
+                            apptDiv.className = 'admin-appointments';
                             calWrap.appendChild(apptDiv);
                             // Render calendar
                             renderCalendar(calDiv, apptDiv);
                         } else {
-                            document.getElementById('loginForm').style.display = 'block';
+                            document.getElementById('loginForm').className = 'admin-login-form admin-login-form-display';
                         }
                     });
             }
@@ -83,11 +84,15 @@
             if (data.success) {
                 loginBtn.textContent = 'Success';
                 document.getElementById('loginMessage').textContent = 'Welcome ' + data.name + "!";
-                document.getElementById('loginMessage').style.color = '#007bff';
+                document.getElementById('loginMessage').className = 'admin-login-message success';
+                // Automatically show calendar after 1 second
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             } else {
                 loginBtn.disabled = false;
                 document.getElementById('loginMessage').textContent = data.message;
-                document.getElementById('loginMessage').style.color = '#dc3545'; // red
+                document.getElementById('loginMessage').className = 'admin-login-message error';
                 if (data.message.includes('You have 0 login attempts remaining.') || data.message.includes('blocked')) {
                     loginBtn.disabled = true;
                     document.body.innerHTML = '';
@@ -102,148 +107,931 @@
     });
 
     function renderCalendar(calDiv, apptDiv) {
-        const today = new Date();
-        let currentMonth = today.getMonth();
-        let currentYear = today.getFullYear();
-        let unavailableDays = [];
+        let serverDate = null;
+        let currentMonth = null;
+        let currentYear = null;
+        let appointmentStatusDays = {}; // Changed from unavailableDays array to object
 
-        // Month names
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        // Day names
-        const dayNames = ["M", "T", "W", "T", "F", "S", "S"];
+        // Set initial placeholder in appointments panel
+        apptDiv.innerHTML = '<h3>Select a day</h3><div>Click a day to view appointments.</div>';
+        let selectedDate = null;
+        let apptTable = null;
 
-        // Fetch unavailable days for next 120 days
-        fetch('appointment_book.php?action=get_unavailable_days')
+        // Get server date first
+        fetch('appointment_book.php?action=get_server_date')
             .then(res => res.json())
             .then(data => {
-                unavailableDays = data.unavailable || [];
-                renderMonth(currentMonth, currentYear);
+                serverDate = new Date(data.date);
+                currentMonth = serverDate.getMonth();
+                currentYear = serverDate.getFullYear();
+                
+                // Initialize calendar after getting server date
+                initializeCalendar();
             });
 
-        function renderMonth(month, year) {
-            calDiv.innerHTML = '';
-            // Month tabs
-            const tabWrap = document.createElement('div');
-            tabWrap.className = 'calendar-tabs';
-            for (let i = 0; i < 3; i++) {
-                const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
-                const tab = document.createElement('button');
-                tab.className = 'calendar-tab';
-                tab.textContent = monthNames[d.getMonth()] + ' ' + d.getFullYear();
-                if (d.getMonth() === month && d.getFullYear() === year) tab.classList.add('active');
-                tab.onclick = () => {
-                    currentMonth = d.getMonth();
-                    currentYear = d.getFullYear();
-                    renderMonth(currentMonth, currentYear);
-                };
-                tabWrap.appendChild(tab);
-            }
-            calDiv.appendChild(tabWrap);
+        function initializeCalendar() {
+            // Month names
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            // Day names
+            const dayNames = ["M", "T", "W", "T", "F", "S", "S"];
 
-            // Day names header
-            const header = document.createElement('div');
-            header.className = 'calendar-header';
-            dayNames.forEach(dn => {
-                const cell = document.createElement('div');
-                cell.className = 'calendar-header-cell';
-                cell.textContent = dn;
-                header.appendChild(cell);
-            });
-            calDiv.appendChild(header);
-
-            // Days grid
-            const grid = document.createElement('div');
-            grid.className = 'calendar-grid';
-            // First day of month
-            const firstDay = new Date(year, month, 1);
-            let startDay = (firstDay.getDay() + 6) % 7; // Monday=0, Sunday=6
-            // Days in month
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            // Fill grid
-            let dayNum = 1;
-            for (let i = 0; i < 6; i++) { // 6 rows max
-                for (let j = 0; j < 7; j++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'calendar-cell';
-                    if (i === 0 && j < startDay) {
-                        cell.classList.add('empty');
-                        grid.appendChild(cell);
-                        continue;
-                    }
-                    if (dayNum > daysInMonth) {
-                        cell.classList.add('empty');
-                        grid.appendChild(cell);
-                        continue;
-                    }
-                    // Date string for this cell
-                    const cellDate = new Date(year, month, dayNum);
-                    // Fix: always use UTC for ISO string to avoid timezone offset
-                    const cellDateStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth()+1).padStart(2,'0') + '-' + String(cellDate.getDate()).padStart(2,'0');
-                    cell.textContent = dayNum;
-                    cell.dataset.date = cellDateStr;
-                    // Past days
-                    if (cellDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
-                        cell.classList.add('calendar-past');
-                        cell.style.pointerEvents = 'none';
-                    }
-                    // Today
-                    else if (cellDateStr === new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString().slice(0, 10)) {
-                        cell.classList.add('calendar-today');
-                        // Make today clickable
-                        cell.onclick = () => {
-                            selectDay(cellDateStr, cell);
-                        };
-                    }
-                    // Unavailable days
-                    else if (unavailableDays.includes(cellDateStr)) {
-                        cell.classList.add('calendar-unavailable');
-                        cell.onclick = () => {
-                            selectDay(cellDateStr, cell);
-                        };
-                    } else {
-                        cell.classList.add('calendar-available');
-                        cell.onclick = () => {
-                            selectDay(cellDateStr, cell);
-                        };
-                    }
-                    grid.appendChild(cell);
-                    dayNum++;
+            // Create month picker tab with Select Today and Change Month buttons
+            const monthPickerWrap = document.createElement('div');
+            monthPickerWrap.className = 'calendar-month-picker';
+            const monthPicker = document.createElement('input');
+            monthPicker.type = 'month';
+            monthPicker.min = '2000-01';
+            monthPicker.max = '2999-12';
+            monthPicker.required = true;
+            monthPicker.pattern = '\\d{4}-\\d{2}';
+            monthPicker.value = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}`;
+            monthPicker.oninput = (e) => {
+                if (!/^\d{4}-\d{2}$/.test(e.target.value)) {
+                    e.target.setCustomValidity('Month must be in yyyy-mm format');
+                } else {
+                    e.target.setCustomValidity('');
                 }
-            }
-            calDiv.appendChild(grid);
-        }
+            };
+            monthPicker.onchange = (e) => {
+                const [y, m] = e.target.value.split('-');
+                if (y < '2000' || y > '2999') {
+                    alert('Year must be between 2000 and 2999');
+                    monthPicker.value = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}`;
+                    return;
+                }
+                currentMonth = parseInt(m, 10) - 1;
+                currentYear = parseInt(y, 10);
+                renderMonth(currentMonth, currentYear);
+            };
+            // Select Today button
+            const todayBtn = document.createElement('button');
+            todayBtn.textContent = 'Select today';
+            todayBtn.type = 'button';
+            todayBtn.className = 'calendar-today-btn styled-btn';
+            todayBtn.onclick = () => {
+                currentMonth = serverDate.getMonth();
+                currentYear = serverDate.getFullYear();
+                monthPicker.value = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}`;
+                renderMonth(currentMonth, currentYear);
+            };
+            // Change Month button
+            const changeMonthBtn = document.createElement('button');
+            changeMonthBtn.textContent = 'Change month';
+            changeMonthBtn.type = 'button';
+            changeMonthBtn.className = 'calendar-change-month-btn styled-btn';
+            changeMonthBtn.onclick = () => {
+                if (!monthPicker.checkValidity()) {
+                    monthPicker.reportValidity();
+                    return;
+                }
+                const [y, m] = monthPicker.value.split('-');
+                currentMonth = parseInt(m, 10) - 1;
+                currentYear = parseInt(y, 10);
+                renderMonth(currentMonth, currentYear);
+            };
+            monthPickerWrap.appendChild(monthPicker);
+            monthPickerWrap.appendChild(changeMonthBtn);
+            monthPickerWrap.appendChild(todayBtn);
+            calDiv.appendChild(monthPickerWrap);
 
-        function selectDay(dateStr, cell) {
-            // Highlight selected cell
-            document.querySelectorAll('.calendar-cell.selected').forEach(c => c.classList.remove('selected'));
-            cell.classList.add('selected');
-            // Format date for display
-            const d = new Date(cell.dataset.date || dateStr);
-            const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
-            const day = d.getDate();
-            const monthName = d.toLocaleDateString('en-US', { month: 'long' });
-            const year = d.getFullYear();
-            const displayDate = `${dayName} ${day} ${monthName} ${year}`;
-            // Fetch appointments
-            apptDiv.innerHTML = `<h3>Appointments for ${displayDate}</h3><div>Loading...</div>`;
-            fetch('appointment_book.php?action=get_appointments&date=' + dateStr)
+            // Fetch appointment status data for next 120 days
+            fetch('appointment_book.php?action=get_unavailable_days')
                 .then(res => res.json())
                 .then(data => {
-                    const appts = data.appointments || [];
-                    if (appts.length === 0) {
-                        apptDiv.innerHTML = `<h3>Appointments for ${displayDate}</h3><div>No appointments available.</div>`;
-                    } else {
-                        apptDiv.innerHTML = `<h3>Appointments for ${displayDate}</h3>`;
-                        appts.forEach(a => {
-                            const item = document.createElement('div');
-                            item.className = 'appointment-item';
-                            item.textContent = 'Time: ' + a.start_time + ', Duration: ' + a.duration + ' mins';
-                            apptDiv.appendChild(item);
-                        });
-                    }
+                    appointmentStatusDays = data.days || {}; // Use the detailed days object
+                    renderMonth(currentMonth, currentYear);
                 });
+
+            function renderMonth(month, year) {
+                calDiv.innerHTML = '';
+                calDiv.appendChild(monthPickerWrap); // Re-add month picker
+                // Month tabs: previous, current, next month
+                const tabWrap = document.createElement('div');
+                tabWrap.className = 'calendar-tabs';
+                for (let i = -1; i <= 1; i++) {
+                    const d = new Date(year, month + i, 1);
+                    const tab = document.createElement('button');
+                    tab.className = 'calendar-tab';
+                    tab.textContent = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+                    if (d.getMonth() === month && d.getFullYear() === year) tab.classList.add('active');
+                    tab.onclick = () => {
+                        currentMonth = d.getMonth();
+                        currentYear = d.getFullYear();
+                        renderMonth(currentMonth, currentYear);
+                    };
+                    tabWrap.appendChild(tab);
+                }
+                calDiv.appendChild(tabWrap);
+
+                // Day names header
+                const header = document.createElement('div');
+                header.className = 'calendar-header';
+                dayNames.forEach(dn => {
+                    const cell = document.createElement('div');
+                    cell.className = 'calendar-header-cell';
+                    cell.textContent = dn;
+                    header.appendChild(cell);
+                });
+                calDiv.appendChild(header);
+
+                // Apply appointment status styling to cells
+                function applyCellStyling(cell, cellDateStr) {
+                    const todayDateStr = serverDate.getFullYear() + '-' + String(serverDate.getMonth() + 1).padStart(2, '0') + '-' + String(serverDate.getDate()).padStart(2, '0');
+                    
+                    // Apply today and past styling first
+                    if (cellDateStr === todayDateStr) {
+                        cell.classList.add('calendar-today');
+                    } else if (new Date(cellDateStr) < new Date(serverDate.getFullYear(), serverDate.getMonth(), serverDate.getDate())) {
+                        cell.classList.add('calendar-past');
+                    }
+                    
+                    // Apply appointment status styling
+                    const status = appointmentStatusDays[cellDateStr];
+                    if (status === 'none') {
+                        cell.classList.add('no-appointments');
+                    } else if (status === 'all_booked') {
+                        cell.classList.add('all-booked');
+                    } else if (status === 'some_available') {
+                        cell.classList.add('some-available');
+                    } else if (status === 'all_available') {
+                        cell.classList.add('all-available');
+                    }
+                    
+                    cell.style.cursor = 'pointer';
+                    cell.onclick = () => {
+                        selectDay(cellDateStr, cell);
+                    };
+                }
+
+                // Days grid
+                const grid = document.createElement('div');
+                grid.className = 'calendar-grid';
+                // First day of month
+                const firstDay = new Date(year, month, 1);
+                let startDay = (firstDay.getDay() + 6) % 7; // Monday=0, Sunday=6
+                // Days in month
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                // Previous month days
+                const prevMonth = month === 0 ? 11 : month - 1;
+                const prevYear = month === 0 ? year - 1 : year;
+                const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+                // Fill grid
+                let dayNum = 1;
+                let nextMonthDay = 1;
+                for (let i = 0; i < 6; i++) { // 6 rows max
+                    for (let j = 0; j < 7; j++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'calendar-cell';
+                        // Previous month days
+                        if (i === 0 && j < startDay) {
+                            const prevDay = daysInPrevMonth - (startDay - j - 1);
+                            const cellDate = new Date(prevYear, prevMonth, prevDay);
+                            const cellDateStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth()+1).padStart(2,'0') + '-' + String(cellDate.getDate()).padStart(2,'0');
+                            cell.textContent = prevDay;
+                            cell.dataset.date = cellDateStr;
+                            cell.classList.add('calendar-other-month');
+                            applyCellStyling(cell, cellDateStr);
+                            grid.appendChild(cell);
+                            continue;
+                        }
+                        // Current month days
+                        if (dayNum <= daysInMonth) {
+                            const cellDate = new Date(year, month, dayNum);
+                            const cellDateStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth()+1).padStart(2,'0') + '-' + String(cellDate.getDate()).padStart(2,'0');
+                            cell.textContent = dayNum;
+                            cell.dataset.date = cellDateStr;
+                            applyCellStyling(cell, cellDateStr);
+                            grid.appendChild(cell);
+                            dayNum++;
+                            continue;
+                        }
+                        // Next month days
+                        const nextMonth = month === 11 ? 0 : month + 1;
+                        const nextYear = month === 11 ? year + 1 : year;
+                        const cellDate = new Date(nextYear, nextMonth, nextMonthDay);
+                        const cellDateStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth()+1).padStart(2,'0') + '-' + String(cellDate.getDate()).padStart(2,'0');
+                        cell.textContent = nextMonthDay;
+                        cell.dataset.date = cellDateStr;
+                        cell.classList.add('calendar-other-month');
+                        applyCellStyling(cell, cellDateStr);
+                        grid.appendChild(cell);
+                        nextMonthDay++;
+                    }
+                }
+                calDiv.appendChild(grid);
+            }
+
+            function selectDay(dateStr, cell) {
+                // Highlight selected cell
+                document.querySelectorAll('.calendar-cell.selected').forEach(c => c.classList.remove('selected'));
+                cell.classList.add('selected');
+                selectedDate = dateStr;
+                showAppointmentsTable(dateStr);
+            }
+
+            function showAppointmentsTable(dateStr) {
+                fetch('appointment_book.php?action=get_appointments&date=' + dateStr)
+                    .then(res => res.json())
+                    .then(data => {
+                        const appts = data.appointments || [];
+                        if (apptTable) apptTable.remove();
+                        
+                        // Get current server time for comparison
+                        fetch('appointment_book.php?action=get_server_date')
+                            .then(res => res.json())
+                            .then(serverData => {
+                                const serverDateTime = new Date(serverData.date + ' ' + serverData.time);
+                                const selectedDateTime = new Date(dateStr);
+                                
+                                // Create timeline container
+                                apptTable = document.createElement('div');
+                                apptTable.className = 'appt-timeline-container';
+                                
+                                // Timeline header with day name and buttons
+                                const appointmentDate = new Date(dateStr);
+                                const dayName = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' });
+                                const formattedDate = appointmentDate.toLocaleDateString('en-AU'); // dd/mm/yyyy format
+                                
+                                const timelineHeader = document.createElement('div');
+                                timelineHeader.className = 'appt-timeline-header-row';
+                                timelineHeader.innerHTML = `
+                                    <div class="appt-timeline-title">Appointments for ${dayName}, ${formattedDate}</div>
+                                    <div class="appt-timeline-actions">
+                                        <button class="styled-btn auto-create-btn" onclick="autoCreateSlots('${dateStr}')">Auto Create Slots</button>
+                                        <button class="styled-btn add-appt-btn" onclick="showAddAppointmentModal('${dateStr}')">Add Appointment</button>
+                                    </div>
+                                `;
+                                apptTable.appendChild(timelineHeader);
+                                
+                                // Timeline container
+                                const timeline = document.createElement('div');
+                                timeline.className = 'appt-timeline-single';
+                                
+                                if (appts.length === 0) {
+                                    timeline.innerHTML = '<div class="no-appointments">No appointments scheduled for this day</div>';
+                                } else {
+                                    // Sort appointments by time
+                                    appts.sort((a, b) => a.time.localeCompare(b.time));
+                                    
+                                    // Create appointment items
+                                    appts.forEach(appt => {
+                                        const apptItem = document.createElement('div');
+                                        apptItem.className = 'appt-item';
+                                        
+                                        const time = appt.time.substring(0, 5); // Format as HH:MM
+                                        const isAvailable = appt.status === 'available';
+                                        const isBlocked = appt.status === 'blocked';
+                                        const isBooked = appt.status === 'confirmed' && appt.user_id;
+                                        
+                                        // Check if appointment is in the past
+                                        const apptDateTime = new Date(dateStr + ' ' + appt.time);
+                                        const isPastAppointment = apptDateTime < serverDateTime;
+                                        
+                                        if (isAvailable) {
+                                            if (isPastAppointment) {
+                                                // Past available slots - yellow color, no book button
+                                                apptItem.className += ' past-available';
+                                                apptItem.innerHTML = `
+                                                    <div class="appt-time">${time}</div>
+                                                    <div class="appt-status past-status">Past Slot</div>
+                                                    <div class="appt-actions">
+                                                        <button class="block-btn" onclick="blockAppointment(${appt.id})">Block</button>
+                                                        <button class="delete-btn" onclick="deleteAppointment(${appt.id})">Delete</button>
+                                                    </div>
+                                                `;
+                                            } else {
+                                                // Future available slots - green color, show book button
+                                                apptItem.className += ' available';
+                                                apptItem.innerHTML = `
+                                                    <div class="appt-time">${time}</div>
+                                                    <div class="appt-status">Available Slot</div>
+                                                    <div class="appt-actions">
+                                                        <button class="book-btn" onclick="showBookModal('${appt.id}', '${time}', '${dateStr}')">Book</button>
+                                                        <button class="block-btn" onclick="blockAppointment(${appt.id})">Block</button>
+                                                        <button class="delete-btn" onclick="deleteAppointment(${appt.id})">Delete</button>
+                                                    </div>
+                                                `;
+                                            }
+                                        } else if (isBlocked) {
+                                            apptItem.className += ' blocked';
+                                            apptItem.innerHTML = `
+                                                <div class="appt-time">${time}</div>
+                                                <div class="appt-status blocked-status">BLOCKED</div>
+                                                <div class="appt-actions">
+                                                    <button class="unblock-btn" onclick="unblockAppointment(${appt.id})">Unblock</button>
+                                                    <button class="delete-btn" onclick="deleteAppointment(${appt.id})">Delete</button>
+                                                </div>
+                                            `;
+                                        } else if (isBooked) {
+                                            apptItem.className += ' booked';
+                                            const phoneDisplay = appt.phone_number ? `<div class="appt-phone">📞 ${appt.phone_number}</div>` : '';
+                                            apptItem.innerHTML = `
+                                                <div class="appt-time">${time}</div>
+                                                <div class="appt-customer-info">
+                                                    <div class="appt-customer">${appt.customer_name || 'No Name'}</div>
+                                                    <div class="appt-email">✉️ ${appt.customer_email || 'No Email'}</div>
+                                                    ${phoneDisplay}
+                                                </div>
+                                                <div class="appt-actions">
+                                                    <button class="cancel-btn" onclick="cancelAppointment(${appt.id})">Cancel</button>
+                                                    <button class="block-btn" onclick="blockAppointment(${appt.id})">Block</button>
+                                                    <button class="delete-btn" onclick="deleteAppointment(${appt.id})">Delete</button>
+                                                </div>
+                                            `;
+                                        } else {
+                                            // Fallback for any other status
+                                            apptItem.className += ' unknown';
+                                            apptItem.innerHTML = `
+                                                <div class="appt-time">${time}</div>
+                                                <div class="appt-status">Status: ${appt.status}</div>
+                                                <div class="appt-actions">
+                                                    <button class="delete-btn" onclick="deleteAppointment(${appt.id})">Delete</button>
+                                                </div>
+                                            `;
+                                        }
+                                        
+                                        timeline.appendChild(apptItem);
+                                    });
+                                }
+                                
+                                apptTable.appendChild(timeline);
+                                
+                                // Replace appointments content
+                                apptDiv.innerHTML = '';
+                                apptDiv.appendChild(apptTable);
+                            });
+                    });
+            }
+
+            // Add appointment modal function
+            window.showAddAppointmentModal = function(dateStr) {
+                const modal = document.createElement('div');
+                modal.className = 'admin-modal';
+                modal.style.display = 'flex';
+                
+                const appointmentDate = new Date(dateStr);
+                const dayName = appointmentDate.toLocaleDateString('en-US', { weekday: 'long' });
+                const formattedDate = appointmentDate.toLocaleDateString('en-AU');
+                
+                modal.innerHTML = `
+                    <div class="admin-modal-content">
+                        <h3>Add Appointment</h3>
+                        <p>Adding appointment for <strong>${dayName}, ${formattedDate}</strong></p>
+                        <form id="addApptModalForm">
+                            <div class="booking-form-row">
+                                <label>Time:</label>
+                                <input type="time" id="modalApptTime" value="10:00" required pattern="^([01]\\d|2[0-3]):([0-5]\\d)$">
+                            </div>
+                            <div class="booking-form-row">
+                                <label>Duration (minutes):</label>
+                                <input type="number" id="modalApptDuration" value="30" min="1" max="120" required>
+                            </div>
+                            <div id="modalApptMsg" class="booking-msg"></div>
+                            <div class="admin-modal-buttons">
+                                <button type="button" class="styled-btn" style="background: #6c757d;" onclick="closeAddAppointmentModal()">Cancel</button>
+                                <button type="submit" class="styled-btn" style="background: #007bff;">Add Appointment</button>
+                            </div>
+                        </form>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                window.currentModal = modal;
+                
+                // Fetch default appointment duration
+                fetch('appointment_book.php?action=get_setting&key=appointment_duration')
+                    .then(res => res.json())
+                    .then(data => {
+                        const defaultDuration = data.value || '30';
+                        const durationInput = document.getElementById('modalApptDuration');
+                        if (durationInput) {
+                            durationInput.value = defaultDuration;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching default duration:', error);
+                    });
+                
+                // Handle form submission
+                document.getElementById('addApptModalForm').onsubmit = function(e) {
+                    e.preventDefault();
+                    const time = document.getElementById('modalApptTime').value;
+                    const duration = document.getElementById('modalApptDuration').value;
+                    
+                    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
+                        document.getElementById('modalApptMsg').textContent = 'Invalid time format.';
+                        document.getElementById('modalApptMsg').className = 'booking-msg error';
+                        return;
+                    }
+                    if (duration < 1 || duration > 120) {
+                        document.getElementById('modalApptMsg').textContent = 'Duration must be between 1 and 120 minutes.';
+                        document.getElementById('modalApptMsg').className = 'booking-msg error';
+                        return;
+                    }
+                    
+                    fetch('appointment_book.php?action=add_appointment', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `date=${dateStr}&time=${time}&duration=${duration}`
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            closeAddAppointmentModal();
+                            // Refresh appointmentStatusDays and calendar, then refresh appointments table
+                            fetch('appointment_book.php?action=get_unavailable_days')
+                                .then(res => res.json())
+                                .then(unavailData => {
+                                    appointmentStatusDays = unavailData.days || {};
+                                    renderMonth(currentMonth, currentYear);
+                                    showAppointmentsTable(dateStr);
+                                });
+                        } else {
+                            document.getElementById('modalApptMsg').className = 'booking-msg error';
+                            document.getElementById('modalApptMsg').textContent = data.message || 'Appointment could not be added.';
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById('modalApptMsg').className = 'booking-msg error';
+                        document.getElementById('modalApptMsg').textContent = 'Error adding appointment.';
+                    });
+                };
+            };
+
+            // Close add appointment modal
+            window.closeAddAppointmentModal = function() {
+                if (window.currentModal) {
+                    window.currentModal.remove();
+                    window.currentModal = null;
+                }
+            };
+
+            // Auto create slots function (moved outside modal)
+            window.autoCreateSlots = function(dateStr) {
+                fetch('appointment_book.php?action=auto_create_slots', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `date=${dateStr}`
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        // Refresh appointmentStatusDays and calendar, then refresh appointments table
+                        fetch('appointment_book.php?action=get_unavailable_days')
+                            .then(res => res.json())
+                            .then(unavailData => {
+                                appointmentStatusDays = unavailData.days || {};
+                                renderMonth(currentMonth, currentYear);
+                                showAppointmentsTable(dateStr);
+                            });
+                    } else {
+                        alert(data.message || 'Could not create appointment slots.');
+                    }
+                })
+                .catch(error => {
+                    alert('Error creating appointment slots.');
+                });
+            };
+
+            // Move block/unblock functions inside the scope where they can access variables
+            window.blockAppointment = function(appointmentId) {
+                fetch('appointment_book.php?action=block_appointment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `id=${appointmentId}`
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        // Refresh only the appointments table for the selected date
+                        if (selectedDate) {
+                            showAppointmentsTable(selectedDate);
+                            // Also refresh calendar colors
+                            fetch('appointment_book.php?action=get_unavailable_days')
+                                .then(res => res.json())
+                                .then(unavailData => {
+                                    appointmentStatusDays = unavailData.days || {};
+                                    renderMonth(currentMonth, currentYear);
+                                });
+                        }
+                    } else {
+                        alert('Failed to block appointment: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error blocking appointment:', error);
+                    alert('Error blocking appointment');
+                });
+            };
+
+            // Unblock appointment function
+            window.unblockAppointment = function(appointmentId) {
+                fetch('appointment_book.php?action=unblock_appointment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `id=${appointmentId}`
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        // Refresh only the appointments table for the selected date
+                        if (selectedDate) {
+                            showAppointmentsTable(selectedDate);
+                            // Also refresh calendar colors
+                            fetch('appointment_book.php?action=get_unavailable_days')
+                                .then(res => res.json())
+                                .then(unavailData => {
+                                    appointmentStatusDays = unavailData.days || {};
+                                    renderMonth(currentMonth, currentYear);
+                                });
+                        }
+                    } else {
+                        alert('Failed to unblock appointment: ' + (data.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error unblocking appointment:', error);
+                    alert('Error unblocking appointment');
+                });
+            };
         }
     }
+
+    // Global function for deleting appointments
+    window.deleteAppointment = function(appointmentId) {
+        if (!confirm('Delete this appointment?')) return;
+        
+        fetch('appointment_book.php?action=delete_appointment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `appointment_id=${appointmentId}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                // Refresh the view
+                location.reload();
+            } else {
+                alert('Failed to delete appointment: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error deleting appointment');
+        });
+    };
+
+    // Show delete all appointments confirmation modal
+    function showDeleteAllModal(date) {
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.style.display = 'flex';
+        
+        const dateFormatted = new Date(date).toLocaleDateString();
+        
+        modal.innerHTML = `
+            <div class="admin-modal-content">
+                <h3>Delete All Appointments</h3>
+                <p>Are you sure you want to delete ALL appointments for <strong>${dateFormatted}</strong>?</p>
+                <p style="color: #dc3545; font-weight: bold;">This action cannot be undone!</p>
+                <div class="admin-modal-buttons">
+                    <button class="styled-btn" style="background: #6c757d;" onclick="closeDeleteAllModal()">Cancel</button>
+                    <button class="styled-btn" style="background: #dc3545;" onclick="confirmDeleteAll('${date}')">Delete All</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        window.currentModal = modal;
+    }
+
+    // Close delete all modal
+    window.closeDeleteAllModal = function() {
+        if (window.currentModal) {
+            window.currentModal.remove();
+            window.currentModal = null;
+        }
+    };
+
+    // Confirm delete all appointments
+    window.confirmDeleteAll = function(date) {
+        fetch('appointment_book.php?action=delete_all_appointments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `date=${date}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeDeleteAllModal();
+            
+            if (data.success) {
+                const dateFormatted = new Date(date).toLocaleDateString();
+                document.getElementById('apptMsg').className = 'admin-appt-msg success';
+                document.getElementById('apptMsg').textContent = `${data.message} for ${dateFormatted}`;
+                
+                // Refresh everything
+                fetch('appointment_book.php?action=get_unavailable_days')
+                    .then(res => res.json())
+                    .then(unavailData => {
+                        // Update calendar and refresh selected day
+                        location.reload();
+                    });
+            } else {
+                document.getElementById('apptMsg').className = 'admin-appt-msg';
+                document.getElementById('apptMsg').textContent = data.message || 'Could not delete appointments.';
+            }
+        })
+        .catch(error => {
+            closeDeleteAllModal();
+            document.getElementById('apptMsg').className = 'admin-appt-msg';
+            document.getElementById('apptMsg').textContent = 'Error deleting appointments.';
+        });
+    };
+
+    // Show booking modal for available appointments
+    window.showBookModal = function(appointmentId, time, date) {
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.style.display = 'flex';
+        
+        const dateFormatted = new Date(date).toLocaleDateString();
+        
+        modal.innerHTML = `
+            <div class="admin-modal-content">
+                <h3>Book Appointment</h3>
+                <p>Booking appointment for <strong>${time}</strong> on <strong>${dateFormatted}</strong></p>
+                <form id="bookingForm">
+                    <div class="booking-form-row">
+                        <label>First Name:</label>
+                        <input type="text" id="firstName" required minlength="2" maxlength="50" pattern="[A-Za-z\\s]+" title="First name should only contain letters and spaces">
+                    </div>
+                    <div class="booking-form-row">
+                        <label>Last Name:</label>
+                        <input type="text" id="lastName" required minlength="2" maxlength="50" pattern="[A-Za-z\\s]+" title="Last name should only contain letters and spaces">
+                    </div>
+                    <div class="booking-form-row">
+                        <label>Mobile (Australian format):</label>
+                        <input type="tel" id="mobile" placeholder="04xxxxxxxx" pattern="04[0-9]{8}" title="Mobile number must be in format 04xxxxxxxx (10 digits total)" maxlength="10">
+                    </div>
+                    <div class="booking-form-row">
+                        <label>Email:</label>
+                        <input type="email" id="email" required maxlength="100" title="Please enter a valid email address">
+                    </div>
+                    <div id="bookingMsg" class="booking-msg"></div>
+                    <div class="admin-modal-buttons">
+                        <button type="button" class="styled-btn" style="background: #6c757d;" onclick="closeBookModal()">Cancel</button>
+                        <button type="submit" class="styled-btn" style="background: #28a745;">Book Appointment</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        window.currentModal = modal;
+        
+        // Add real-time validation feedback
+        const mobileInput = document.getElementById('mobile');
+        const emailInput = document.getElementById('email');
+        const firstNameInput = document.getElementById('firstName');
+        const lastNameInput = document.getElementById('lastName');
+        
+        // Mobile validation feedback
+        mobileInput.addEventListener('input', function() {
+            const value = this.value;
+            if (value && !/^04[0-9]{0,8}$/.test(value)) {
+                this.setCustomValidity('Mobile must start with 04 and be exactly 10 digits');
+            } else if (value && value.length !== 10) {
+                this.setCustomValidity('Mobile must be exactly 10 digits');
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+        
+        // Name validation feedback
+        [firstNameInput, lastNameInput].forEach(input => {
+            input.addEventListener('input', function() {
+                const value = this.value;
+                if (value && !/^[A-Za-z\s]+$/.test(value)) {
+                    this.setCustomValidity('Names should only contain letters and spaces');
+                } else {
+                    this.setCustomValidity('');
+                }
+            });
+        });
+        
+        // Handle form submission
+        document.getElementById('bookingForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            // Check form validity first
+            if (!this.checkValidity()) {
+                this.reportValidity();
+                return;
+            }
+            
+            const firstName = document.getElementById('firstName').value.trim();
+            const lastName = document.getElementById('lastName').value.trim();
+            const mobile = document.getElementById('mobile').value.trim();
+            const email = document.getElementById('email').value.trim();
+            
+            // Additional validation
+            if (!mobile && !email) {
+                document.getElementById('bookingMsg').textContent = 'Please provide either mobile or email.';
+                document.getElementById('bookingMsg').className = 'booking-msg error';
+                return;
+            }
+            
+            if (mobile && mobile.length !== 10) {
+                document.getElementById('bookingMsg').textContent = 'Mobile number must be exactly 10 digits.';
+                document.getElementById('bookingMsg').className = 'booking-msg error';
+                return;
+            }
+            
+            // Create user and book appointment
+            fetch('appointment_book.php?action=create_user_and_book', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `id=${appointmentId}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&mobile=${encodeURIComponent(mobile)}&email=${encodeURIComponent(email)}`
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    closeBookModal();
+                    location.reload(); // Refresh the entire view
+                } else if (data.conflict) {
+                    // Handle user conflicts
+                    closeBookModal();
+                    showUserConflictModal(appointmentId, time, date, data);
+                } else {
+                    // Show user-friendly error messages
+                    let errorMessage = data.message || 'Could not book appointment.';
+                    
+                    // Convert SQL errors to user-friendly messages
+                    if (errorMessage.includes('phone_number') && errorMessage.includes('check')) {
+                        errorMessage = 'Mobile number format is invalid. Please use format: 04xxxxxxxx';
+                    } else if (errorMessage.includes('email') && errorMessage.includes('check')) {
+                        errorMessage = 'Email format is invalid. Please enter a valid email address.';
+                    } else if (errorMessage.includes('duplicate') || errorMessage.includes('unique')) {
+                        errorMessage = 'A user with this email already exists.';
+                    }
+                    
+                    document.getElementById('bookingMsg').textContent = errorMessage;
+                    document.getElementById('bookingMsg').className = 'booking-msg error';
+                }
+            })
+            .catch(error => {
+                document.getElementById('bookingMsg').textContent = 'Error booking appointment. Please try again.';
+                document.getElementById('bookingMsg').className = 'booking-msg error';
+            });
+        };
+    };
+
+    // Close booking modal
+    window.closeBookModal = function() {
+        if (window.currentModal) {
+            window.currentModal.remove();
+            window.currentModal = null;
+        }
+    };
+
+    // Cancel appointment function
+    window.cancelAppointment = function(appointmentId) {
+        if (!confirm('Cancel this appointment? The time slot will become available again.')) return;
+        
+        fetch('appointment_book.php?action=cancel_user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `id=${appointmentId}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Failed to cancel appointment: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error canceling appointment');
+        });
+    };
+
+    // Show user conflict resolution modal
+    window.showUserConflictModal = function(appointmentId, time, date, conflictData) {
+        const modal = document.createElement('div');
+        modal.className = 'admin-modal';
+        modal.style.display = 'flex';
+        
+        const dateFormatted = new Date(date).toLocaleDateString();
+        
+        let modalContent = `
+            <div class="admin-modal-content conflict-modal">
+                <h3>User Already Exists</h3>
+                <p>Booking appointment for <strong>${time}</strong> on <strong>${dateFormatted}</strong></p>
+                <p class="conflict-message">${conflictData.message}</p>
+                
+                <div class="existing-users-section">
+                    <h4>Existing Users:</h4>
+                    <div class="users-list">
+        `;
+        
+        conflictData.existing_users.forEach(user => {
+            modalContent += `
+                <div class="user-option">
+                    <div class="user-info">
+                        <strong>${user.first_name} ${user.last_name}</strong><br>
+                        <small>Email: ${user.email}</small><br>
+                        <small>Mobile: ${user.phone_number || 'Not provided'}</small>
+                    </div>
+                    <button class="styled-btn select-user-btn" onclick="selectExistingUser(${appointmentId}, ${user.id})">
+                        Select This User
+                    </button>
+                </div>
+            `;
+        });
+        
+        modalContent += `
+                    </div>
+                </div>
+        `;
+        
+        if (conflictData.can_create_new) {
+            const newUser = conflictData.new_user_details;
+            modalContent += `
+                <div class="new-user-section">
+                    <h4>Or Create New User:</h4>
+                    <div class="new-user-info">
+                        <strong>${newUser.first_name} ${newUser.last_name}</strong><br>
+                        <small>Email: ${newUser.email}</small><br>
+                        <small>Mobile: ${newUser.mobile || 'Not provided'}</small>
+                    </div>
+                    <button class="styled-btn create-new-btn" onclick="forceCreateNewUser(${appointmentId}, '${newUser.first_name}', '${newUser.last_name}', '${newUser.mobile}', '${newUser.email}')">
+                        Create New User
+                    </button>
+                </div>
+            `;
+        }
+        
+        modalContent += `
+                <div class="admin-modal-buttons">
+                    <button class="styled-btn" style="background: #6c757d;" onclick="closeConflictModal()">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        modal.innerHTML = modalContent;
+        document.body.appendChild(modal);
+        window.currentModal = modal;
+    };
+
+    // Select existing user for appointment
+    window.selectExistingUser = function(appointmentId, userId) {
+        fetch('appointment_book.php?action=book_appointment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `id=${appointmentId}&user_id=${userId}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeConflictModal();
+                location.reload();
+            } else {
+                alert('Failed to book appointment: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error booking appointment');
+        });
+    };
+
+    // Force create new user despite conflicts
+    window.forceCreateNewUser = function(appointmentId, firstName, lastName, mobile, email) {
+        fetch('appointment_book.php?action=force_create_user_and_book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `id=${appointmentId}&first_name=${encodeURIComponent(firstName)}&last_name=${encodeURIComponent(lastName)}&mobile=${encodeURIComponent(mobile)}&email=${encodeURIComponent(email)}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                closeConflictModal();
+                location.reload();
+            } else {
+                alert('Failed to create user: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error creating user');
+        });
+    };
+
+    // Close conflict modal
+    window.closeConflictModal = function() {
+        if (window.currentModal) {
+            window.currentModal.remove();
+            window.currentModal = null;
+        }
+    };
     </script>
 </body>
 </html>

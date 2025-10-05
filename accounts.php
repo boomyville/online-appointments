@@ -21,6 +21,14 @@ function admin_exists($pdo) {
     return $count > 0;
 }
 
+// Get setting value from database
+function get_setting($pdo, $key, $default = null) {
+    $stmt = $pdo->prepare('SELECT value FROM Settings WHERE key_name = ?');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+    return $row ? $row['value'] : $default;
+}
+
 function validate_nonce($pdo, $nonce) {
     $stmt = $pdo->prepare('SELECT id FROM Nonces WHERE nonce = ? AND created_at >= (NOW() - INTERVAL 1 MINUTE)');
     $stmt->execute([$nonce]);
@@ -81,7 +89,7 @@ if ($action === 'get_nonce') {
     // Generate a random nonce
     $nonce = bin2hex(random_bytes(16));
     // Store nonce in DB (user_id is NULL for registration)
-    $stmt = $pdo->prepare('INSERT INTO Nonces (user_id, nonce, created_at) VALUES (?, ?, NOW())');
+    $stmt = $pdo->prepare('INSERT INTO Nonces (user_id, nonce, created_at, expires_at) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 1 HOUR))');
     $stmt->execute([null, $nonce]);
     echo json_encode(['nonce' => $nonce]);
     exit;
@@ -152,6 +160,12 @@ if ($action === 'login_blocked') {
 if ($action === 'session_active') {
     session_start();
     echo json_encode(['active' => isset($_SESSION['admin'])]);
+    exit;
+}
+if ($action === 'logout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    session_start();
+    session_destroy();
+    echo json_encode(['success' => true]);
     exit;
 }
 echo json_encode(['success' => false, 'message' => 'Invalid action.']);
