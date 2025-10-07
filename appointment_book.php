@@ -37,17 +37,39 @@
         }
         $result = [];
         foreach ($dates as $date) {
-            $stmt = $pdo->prepare('SELECT status FROM appointments WHERE appointment_date = ?');
+            $stmt = $pdo->prepare('SELECT status FROM appointments WHERE appointment_date = ? ORDER BY appointment_time ASC');
             $stmt->execute([$date]);
             $appts = $stmt->fetchAll(PDO::FETCH_COLUMN);
             if (count($appts) === 0) {
-                $result[$date] = 'none'; // No appointments at all
-            } else if (count(array_filter($appts, function($status){return $status === 'confirmed';})) === count($appts)) {
-                $result[$date] = 'all_booked'; // All appointments are confirmed (booked)
-            } else if (count(array_filter($appts, function($status){return $status === 'cancelled';})) === count($appts)) {
-                $result[$date] = 'all_available'; // All appointments are cancelled (available)
+                $result[$date] = [
+                    'status' => 'none',
+                    'appointments' => []
+                ]; // No appointments at all
             } else {
-                $result[$date] = 'some_available'; // Mixed confirmed and cancelled
+                // Only count bookable appointments (confirmed + available), ignore blocked
+                $bookableAppts = array_filter($appts, function($status) {
+                    return $status === 'confirmed' || $status === 'available';
+                });
+                
+                $confirmedCount = count(array_filter($appts, function($status){return $status === 'confirmed';}));
+                $bookableCount = count($bookableAppts);
+                
+                $status = 'none';
+                if ($bookableCount === 0) {
+                    // No bookable appointments (all blocked or other statuses)
+                    $status = 'none';
+                } else if ($confirmedCount === 0) {
+                    $status = 'all_available'; // All bookable appointments are available
+                } else if ($confirmedCount === $bookableCount) {
+                    $status = 'all_booked'; // All bookable appointments are booked
+                } else {
+                    $status = 'some_booked'; // Some bookable appointments are booked
+                }
+                
+                $result[$date] = [
+                    'status' => $status,
+                    'appointments' => $appts
+                ];
             }
         }
         echo json_encode(['days' => $result]);

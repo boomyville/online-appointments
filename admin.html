@@ -245,16 +245,65 @@
                         cell.classList.add('calendar-past');
                     }
                     
+                    // Get appointment data for this date
+                    const dayData = appointmentStatusDays[cellDateStr];
+                    const status = dayData?.status || 'none';
+                    const appointments = dayData?.appointments || [];
+                    
                     // Apply appointment status styling
-                    const status = appointmentStatusDays[cellDateStr];
                     if (status === 'none') {
                         cell.classList.add('no-appointments');
                     } else if (status === 'all_booked') {
                         cell.classList.add('all-booked');
+                    } else if (status === 'some_booked') {
+                        cell.classList.add('some-booked');
                     } else if (status === 'some_available') {
                         cell.classList.add('some-available');
                     } else if (status === 'all_available') {
                         cell.classList.add('all-available');
+                    }
+                    
+                    // Create cell content with day number and mini grid
+                    const dayNumber = cell.textContent;
+                    cell.innerHTML = '';
+                    
+                    // Day number
+                    const dayDiv = document.createElement('div');
+                    dayDiv.className = 'calendar-cell-day';
+                    dayDiv.textContent = dayNumber;
+                    cell.appendChild(dayDiv);
+                    
+                    // Mini appointment grid (only if there are appointments)
+                    if (appointments.length > 0) {
+                        const miniGrid = document.createElement('div');
+                        miniGrid.className = 'appt-mini-grid';
+                        
+                        // Create up to 16 blocks (8x2 grid)
+                        const maxBlocks = 16;
+                        const appointmentCount = Math.min(appointments.length, maxBlocks);
+                        
+                        // Fill the grid with appointment blocks
+                        for (let i = 0; i < maxBlocks; i++) {
+                            const block = document.createElement('div');
+                            block.className = 'appt-mini-block';
+                            
+                            if (i < appointmentCount) {
+                                const apptStatus = appointments[i];
+                                if (apptStatus === 'confirmed') {
+                                    block.classList.add('confirmed');
+                                } else if (apptStatus === 'available') {
+                                    block.classList.add('available');
+                                } else if (apptStatus === 'blocked') {
+                                    block.classList.add('blocked');
+                                }
+                            } else {
+                                block.classList.add('empty');
+                            }
+                            
+                            miniGrid.appendChild(block);
+                        }
+                        
+                        cell.appendChild(miniGrid);
                     }
                     
                     cell.style.cursor = 'pointer';
