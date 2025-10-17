@@ -238,19 +238,24 @@
                 function applyCellStyling(cell, cellDateStr) {
                     const todayDateStr = serverDate.getFullYear() + '-' + String(serverDate.getMonth() + 1).padStart(2, '0') + '-' + String(serverDate.getDate()).padStart(2, '0');
                     
-                    // Apply today and past styling first
-                    if (cellDateStr === todayDateStr) {
-                        cell.classList.add('calendar-today');
-                    } else if (new Date(cellDateStr) < new Date(serverDate.getFullYear(), serverDate.getMonth(), serverDate.getDate())) {
-                        cell.classList.add('calendar-past');
-                    }
-                    
                     // Get appointment data for this date
                     const dayData = appointmentStatusDays[cellDateStr];
                     const status = dayData?.status || 'none';
-                    const appointments = dayData?.appointments || [];
+                    const appointments = dayData?.appointments || [];}
                     
-                    // Apply appointment status styling
+                    // Check if this is a past date (compare date strings properly)
+                    const cellDate = new Date(cellDateStr);
+                    const todayDate = new Date(todayDateStr);
+                    const isPastDate = cellDate < todayDate;
+                    
+                    // Apply today and past styling first
+                    if (cellDateStr === todayDateStr) {
+                        cell.classList.add('calendar-today');
+                    } else if (isPastDate) {
+                        cell.classList.add('calendar-past');
+                    }
+                    
+                    // Apply appointment status styling (but past styling will override background)
                     if (status === 'none') {
                         cell.classList.add('no-appointments');
                     } else if (status === 'all_booked') {
@@ -273,10 +278,15 @@
                     dayDiv.textContent = dayNumber;
                     cell.appendChild(dayDiv);
                     
-                    // Mini appointment grid (only if there are appointments)
+                    // Mini appointment grid (show for ALL days with appointments, including past)
                     if (appointments.length > 0) {
                         const miniGrid = document.createElement('div');
                         miniGrid.className = 'appt-mini-grid';
+                        
+                        // Add past styling to mini grid if this is a past date
+                        if (isPastDate) {
+                            miniGrid.classList.add('past-day-grid');
+                        }
                         
                         // Create up to 16 blocks (8x2 grid)
                         const maxBlocks = 16;
@@ -295,6 +305,11 @@
                                     block.classList.add('available');
                                 } else if (apptStatus === 'blocked') {
                                     block.classList.add('blocked');
+                                }
+                                
+                                // Add past styling to individual blocks if this is a past date
+                                if (isPastDate) {
+                                    block.classList.add('past-day');
                                 }
                             } else {
                                 block.classList.add('empty');

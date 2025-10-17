@@ -31,15 +31,26 @@
     if (isset($_GET['action']) && $_GET['action'] === 'get_unavailable_days') {
         $today = get_server_date();
         $dates = [];
-        for ($i = 0; $i < 120; $i++) {
+        // Include past 30 days and future 120 days for complete view
+        for ($i = -30; $i < 120; $i++) {
             $d = date('Y-m-d', strtotime("$today +$i day"));
             $dates[] = $d;
         }
+        
+        // Debug: Check date range
+        error_log("Date range: " . min($dates) . " to " . max($dates) . " (total: " . count($dates) . " dates)");
+        
         $result = [];
         foreach ($dates as $date) {
             $stmt = $pdo->prepare('SELECT status FROM appointments WHERE appointment_date = ? ORDER BY appointment_time ASC');
             $stmt->execute([$date]);
             $appts = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            // Debug: log what we found for past days
+            if ($date < $today && count($appts) > 0) {
+                error_log("Past date $date has " . count($appts) . " appointments: " . implode(', ', $appts));
+            }
+            
             if (count($appts) === 0) {
                 $result[$date] = [
                     'status' => 'none',
